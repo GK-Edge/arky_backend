@@ -4,20 +4,19 @@ import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 
 console.log('========================================');
-console.log('🚀 SERVER STARTING - Script loaded');
+console.log('🚀 BACKEND API SERVER STARTING');
 console.log('========================================');
 console.log('Node version:', process.version);
 console.log('Environment:', process.env.NODE_ENV || 'development');
-console.log('Current directory:', process.cwd());
 
 dotenv.config({ path: '.env.local' });
 console.log('✅ dotenv configured');
 
 const app = express();
 const port = process.env.PORT || 3001;
-console.log(`🔧 Server will attempt to listen on port: ${port}`);
+console.log(`🔧 Server will listen on port: ${port}`);
 
-// Enable CORS to allow requests from the frontend
+// Enable CORS for frontend domains
 app.use(cors({
     origin: [
         'https://lavender-parrot-848521.hostingersite.com',
@@ -27,12 +26,22 @@ app.use(cors({
     credentials: true
 }));
 app.use(express.json());
-console.log('✅ Middleware configured');
+console.log('✅ CORS and middleware configured');
 
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 console.log('✅ Gemini AI initialized:', ai ? 'YES' : 'NO (missing API key)');
 
+// Health check endpoint
+app.get('/', (req, res) => {
+    res.json({
+        status: 'running',
+        service: 'ARKY Backend API',
+        endpoints: ['/api/chat', '/api/contact']
+    });
+});
+
+// Chat endpoint
 app.post('/api/chat', async (req, res) => {
     if (!ai) {
         return res.status(500).json({ error: 'Server configuration error: Missing API Key.' });
@@ -45,7 +54,7 @@ app.post('/api/chat', async (req, res) => {
     }
 
     try {
-        const model = 'gemini-3-flash-preview'; // Using the preview model for backend
+        const model = 'gemini-3-flash-preview';
         const response = await ai.models.generateContent({
             model: model,
             contents: message,
@@ -61,7 +70,7 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
-// --- EMAIL ENDPOINT ---
+// Email endpoint (for reference, not used by current frontend)
 import nodemailer from 'nodemailer';
 
 app.post('/api/contact', async (req, res) => {
@@ -71,7 +80,6 @@ app.post('/api/contact', async (req, res) => {
         return res.status(400).json({ error: 'Name and Email are required.' });
     }
 
-    // Check if SMTP credentials are set
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
         console.error("SMTP Configuration Error: Missing SMTP_USER or SMTP_PASS");
         return res.status(500).json({ error: 'Server email configuration missing.' });
@@ -82,7 +90,7 @@ app.post('/api/contact', async (req, res) => {
         const transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST || 'smtp.gmail.com',
             port: smtpPort,
-            secure: smtpPort === 465, // True for 465, false for other ports
+            secure: smtpPort === 465,
             auth: {
                 user: process.env.SMTP_USER,
                 pass: process.env.SMTP_PASS,
@@ -93,7 +101,7 @@ app.post('/api/contact', async (req, res) => {
 
         const mailOptions = {
             from: `"GK Edge Website" <${process.env.SMTP_USER}>`,
-            to: 'info@gkedgemedia.com', // TARGET EMAIL
+            to: 'info@gkedgemedia.com',
             subject: `New Lead: ${firstName} ${lastName} - ${interestLabel}`,
             text: `
 New Contact Form Submission
@@ -126,47 +134,12 @@ ${message || 'No additional message provided.'}
     }
 });
 
-
-// --- SERVE STATIC FRONTEND (Must be after API routes) ---
-// --- SERVE STATIC FRONTEND (Must be after API routes) ---
-import path from 'path';
-import fs from 'fs';
-
-// Use process.cwd() which is safer in some hosting environments
-const DIST_PATH = path.join(process.cwd(), 'dist');
-
-console.log('\n📂 Setting up static file serving...');
-console.log('Serving static files from:', DIST_PATH);
-if (fs.existsSync(DIST_PATH)) {
-    const files = fs.readdirSync(DIST_PATH);
-    console.log('✅ Dist folder found! Contents:', files);
-} else {
-    console.error('❌ CRITICAL: dist folder not found at', DIST_PATH);
-}
-
-// Serve static files
-app.use(express.static(DIST_PATH));
-console.log('✅ Static file middleware added');
-
-// Handle all other routes by serving the index.html (SPA support)
-app.get('*', (req, res) => {
-    const indexPath = path.join(DIST_PATH, 'index.html');
-    if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-    } else {
-        res.status(404).send("Application not built (index.html not found)");
-    }
-});
-console.log('✅ Catch-all route configured');
-
-console.log('\n🎯 Attempting to start server...');
+console.log('\n🎯 Starting API server...');
 app.listen(port, () => {
     console.log('\n========================================');
-    console.log('✅ ✅ ✅ SERVER SUCCESSFULLY STARTED ✅ ✅ ✅');
+    console.log('✅ ✅ ✅ API SERVER RUNNING ✅ ✅ ✅');
     console.log('========================================');
-    console.log(`🌐 Server running on port ${port}`);
-    console.log(`📍 Server address: http://localhost:${port}`);
+    console.log(`🌐 Server listening on port ${port}`);
     console.log(`⏰ Started at: ${new Date().toISOString()}`);
     console.log('========================================\n');
 });
-
