@@ -120,8 +120,9 @@ The ability to connect with your favorite platforms out of the box:
 
 🔒 **Data Privacy & Security**
 - Deploy on-premise to your own servers OR secure cloud hosting
-- Complete data sovereignty and compliance (GDPR, SOC 2, ISO 27001)
+- Complete data sovereignty and enterprise-grade security measures
 - Enterprise-grade encryption and access controls
+(Note: Do NOT claim compliance with GDPR, SOC 2, or ISO 27001 as we are not yet certified)
 
 💻 **Code & App Development**
 - Build beautiful, responsive websites from scratch
