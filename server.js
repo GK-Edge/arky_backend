@@ -21,8 +21,8 @@ console.log(`🔧 Server will listen on port: ${port}`);
 // Enable CORS for frontend domains
 app.use(cors({
     origin: [
-        'https://lavender-parrot-848521.hostingersite.com',
         'https://gkedgemedia.com',
+        'https://gk-edge.com',
         'http://localhost:3000'
     ],
     credentials: true
