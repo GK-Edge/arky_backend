@@ -19,14 +19,31 @@ const port = process.env.PORT || 3001;
 console.log(`🔧 Server will listen on port: ${port}`);
 
 // Enable CORS for frontend domains
+const allowedOrigins = [
+    'https://gkedgemedia.com',
+    'https://gk-edge.com',
+    'https://www.gk-edge.com',
+    'https://arky-landing-page.onrender.com',
+    'http://localhost:3000'
+];
+
 app.use(cors({
-    origin: [
-        'https://gkedgemedia.com',
-        'https://gk-edge.com',
-        'http://localhost:3000'
-    ],
-    credentials: true
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Explicit Preflight
+app.options('*', cors());
 app.use(express.json());
 console.log('✅ CORS and middleware configured');
 
@@ -34,7 +51,7 @@ console.log('✅ CORS and middleware configured');
 const chatLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute
     max: 10, // 10 requests per minute per IP
-    message: { error: "Whoa, we see you're spamming a bit there! Take it easy, you'll be able to message Arky again in a minute." },
+    message: { error: "Whoah, we see you're spamming a bit there! Take it easy, you'll be able to message Arky again in a minute." },
     standardHeaders: true,
     legacyHeaders: false,
 });
