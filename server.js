@@ -43,7 +43,7 @@ app.use(cors({
 }));
 
 // Explicit Preflight
-app.options('*', cors());
+app.options('/{*}', cors());
 app.use(express.json());
 console.log('✅ CORS and middleware configured');
 
