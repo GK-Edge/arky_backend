@@ -3,6 +3,9 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import rateLimit from 'express-rate-limit';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 console.log('Environment:', process.env.NODE_ENV || 'development');
 console.log('----------------------------------------');
@@ -70,39 +73,126 @@ const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 console.log('✅ Gemini AI initialized:', ai ? 'YES' : 'NO (missing API key)');
 
-// Health check endpoint
-app.get('/', (req, res) => {
-    res.json({
-        status: 'running',
-        service: 'ARKY Backend API',
-        version: '1.0.0',
-        endpoints: ['/api/chat', '/api/contact'],
-        rateLimits: {
-            chat: '10 requests per minute',
-            contact: '3 requests per 15 minutes'
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const KNOWLEDGEBASE_CANDIDATE_PATHS = [
+    path.join(process.cwd(), 'knowledgebase.md'),
+    path.join(__dirname, 'knowledgebase.md'),
+    path.join(process.cwd(), 'backend', 'knowledgebase.md'),
+];
+
+const knowledgebasePath = KNOWLEDGEBASE_CANDIDATE_PATHS.find((candidate) => fs.existsSync(candidate));
+const knowledgebaseRaw = knowledgebasePath ? fs.readFileSync(knowledgebasePath, 'utf8') : '';
+
+if (knowledgebasePath) {
+    console.log(`✅ Knowledgebase loaded from: ${knowledgebasePath}`);
+} else {
+    console.warn('⚠️ Knowledgebase not found. Site Copilot will run with limited context.');
+}
+
+function normalizeText(value) {
+    return value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function tokenize(value) {
+    return normalizeText(value)
+        .split(' ')
+        .filter((token) => token.length > 2);
+}
+
+function parseKnowledgebaseSections(markdown) {
+    if (!markdown.trim()) return [];
+
+    const lines = markdown.split(/\r?\n/);
+    const sections = [];
+    let currentTitle = 'General Overview';
+    let currentLevel = 1;
+    let currentLines = [];
+
+    const flushSection = () => {
+        const content = currentLines.join('\n').trim();
+        if (!content) return;
+        sections.push({
+            title: currentTitle,
+            level: currentLevel,
+            content,
+            normalizedTitle: normalizeText(currentTitle),
+            normalizedContent: normalizeText(content),
+        });
+    };
+
+    for (const line of lines) {
+        const heading = line.match(/^(#{1,6})\s+(.+)$/);
+        if (heading) {
+            flushSection();
+            currentTitle = heading[2].trim();
+            currentLevel = heading[1].length;
+            currentLines = [];
+            continue;
         }
-    });
-});
-
-// Chat endpoint with rate limiting
-app.post('/api/chat', chatLimiter, async (req, res) => {
-    if (!ai) {
-        return res.status(500).json({ error: 'Server configuration error: Missing API Key.' });
+        currentLines.push(line);
     }
 
-    const { message } = req.body;
+    flushSection();
+    return sections;
+}
 
-    if (!message) {
-        return res.status(400).json({ error: 'Message is required.' });
+function formatHistory(history) {
+    if (!Array.isArray(history)) return '';
+    return history
+        .slice(-8)
+        .map((message) => {
+            const role = message?.role === 'assistant' ? 'ARKY' : 'Visitor';
+            const content = typeof message?.content === 'string' ? message.content.trim() : '';
+            return content ? `${role}: ${content}` : '';
+        })
+        .filter(Boolean)
+        .join('\n');
+}
+
+const parsedKnowledgebaseSections = parseKnowledgebaseSections(knowledgebaseRaw);
+console.log(`✅ Knowledgebase sections parsed: ${parsedKnowledgebaseSections.length}`);
+
+function getKnowledgeContext(query, limit = 4) {
+    if (!parsedKnowledgebaseSections.length) return '';
+
+    const queryTokens = [...new Set(tokenize(query))];
+
+    if (!queryTokens.length) {
+        return parsedKnowledgebaseSections
+            .slice(0, Math.min(limit, 3))
+            .map((section) => `## ${section.title}\n${section.content.slice(0, 1400)}`)
+            .join('\n\n');
     }
 
-    try {
-        const model = 'gemini-2.5-flash';
-        const response = await ai.models.generateContent({
-            model: model,
-            contents: message,
-            config: {
-                systemInstruction: `You are ARKY, an advanced AI agent designed for enterprise business operations.
+    const scored = parsedKnowledgebaseSections
+        .map((section) => {
+            let score = 0;
+            for (const token of queryTokens) {
+                if (section.normalizedTitle.includes(token)) {
+                    score += 6;
+                }
+                const contentHits = section.normalizedContent.split(token).length - 1;
+                score += Math.min(contentHits, 5);
+            }
+            return { section, score };
+        })
+        .sort((a, b) => b.score - a.score || a.section.level - b.section.level);
+
+    const relevant = scored.filter((item) => item.score > 0);
+    const selected = (relevant.length ? relevant : scored).slice(0, limit);
+
+    return selected
+        .map(({ section }) => `## ${section.title}\n${section.content.slice(0, 1400)}`)
+        .join('\n\n');
+}
+
+const DEMO_SYSTEM_INSTRUCTION = `You are ARKY, an advanced AI agent designed for enterprise business operations.
 
 IMPORTANT: You are currently running in DEMO MODE on our website. Your purpose is to showcase what the full ARKY system can do and help users understand its capabilities.
 
@@ -160,7 +250,70 @@ YOUR DEMO ROLE:
 - Guide interested users to contact our team (info@gkedgemedia.com) for full deployment
 - Stay on topic: ARKY and GK Edge only
 
-Keep responses conversational, clear, and under 150 words unless detailed explanation is needed.`,
+Keep responses conversational, clear, and under 150 words unless detailed explanation is needed.`;
+
+const SITE_COPILOT_SYSTEM_INSTRUCTION = `You are ARKY Site Copilot for gk-edge.com.
+
+Your role is to help visitors navigate the website and understand GK Edge services.
+
+Rules:
+- Use only provided knowledgebase context and conversation context.
+- Do not invent pricing, certifications, guarantees, or client claims.
+- Keep replies concise and practical (2-6 short sentences).
+- When suggesting pages, use markdown links with labels (example: [Contact](/contact), [ARKY](/arky)).
+- Do not output raw paths alone unless the user explicitly asks for raw URLs.
+- If information is missing, say so briefly and suggest contacting info@gkedgemedia.com.`;
+
+// Health check endpoint
+app.get('/', (req, res) => {
+    res.json({
+        status: 'running',
+        service: 'ARKY Backend API',
+        version: '1.0.0',
+        endpoints: ['/api/chat', '/api/contact'],
+        rateLimits: {
+            chat: '10 requests per minute',
+            contact: '3 requests per 15 minutes'
+        }
+    });
+});
+
+// Chat endpoint with rate limiting
+app.post('/api/chat', chatLimiter, async (req, res) => {
+    if (!ai) {
+        return res.status(500).json({ error: 'Server configuration error: Missing API Key.' });
+    }
+
+    const { message, mode = 'demo', history = [] } = req.body;
+
+    if (!message || typeof message !== 'string') {
+        return res.status(400).json({ error: 'Message is required.' });
+    }
+
+    try {
+        const model = 'gemini-3.1-flash-lite-preview';
+        const safeMessage = message.trim();
+        const chatMode = mode === 'site_copilot' ? 'site_copilot' : 'demo';
+        const historyText = formatHistory(history);
+        const knowledgeContext = chatMode === 'site_copilot'
+            ? getKnowledgeContext(`${safeMessage}\n${historyText}`)
+            : '';
+
+        const payload = chatMode === 'site_copilot'
+            ? [
+                historyText ? `Recent conversation:\n${historyText}` : '',
+                knowledgeContext ? `Knowledgebase excerpts:\n${knowledgeContext}` : '',
+                `Visitor question: ${safeMessage}`,
+            ].filter(Boolean).join('\n\n')
+            : safeMessage;
+
+        const response = await ai.models.generateContent({
+            model: model,
+            contents: payload,
+            config: {
+                systemInstruction: chatMode === 'site_copilot'
+                    ? SITE_COPILOT_SYSTEM_INSTRUCTION
+                    : DEMO_SYSTEM_INSTRUCTION,
             }
         });
 
