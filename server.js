@@ -390,8 +390,9 @@ ${message || 'No additional message provided.'}
 
 // --- KEEP ALIVE PING ---
 // Render free tier spins down after 15 mins of inactivity.
-// This pings the server itself every 14 minutes to keep it awake.
-const BACKEND_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
+// Pinging 'localhost' does NOT work because it bypasses Render's router.
+// We must ping the exact public URL.
+const BACKEND_URL = 'https://arky-backend.onrender.com/';
 
 setInterval(async () => {
     try {
