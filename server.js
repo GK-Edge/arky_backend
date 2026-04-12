@@ -388,6 +388,20 @@ ${message || 'No additional message provided.'}
     }
 });
 
+// --- KEEP ALIVE PING ---
+// Render free tier spins down after 15 mins of inactivity.
+// This pings the server itself every 14 minutes to keep it awake.
+const BACKEND_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
+
+setInterval(async () => {
+    try {
+        const res = await fetch(BACKEND_URL);
+        console.log(`[Keep-Alive] Pinged self (${BACKEND_URL}). Status: ${res.status}`);
+    } catch (err) {
+        console.error(`[Keep-Alive] Failed to ping self:`, err.message);
+    }
+}, 14 * 60 * 1000); // 14 minutes
+
 console.log('\n🎯 Starting API server...');
 app.listen(port, () => {
     console.log('\n========================================');
@@ -396,5 +410,6 @@ app.listen(port, () => {
     console.log(`🌐 Server listening on port ${port}`);
     console.log(`⏰ Started at: ${new Date().toISOString()}`);
     console.log('🛡️  Rate limiting: ACTIVE');
+    console.log('⚡ Keep-Alive: ACTIVE (14 min interval)');
     console.log('========================================\n');
 });
