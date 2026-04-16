@@ -328,9 +328,15 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 import nodemailer from 'nodemailer';
 
 app.post('/api/contact', contactLimiter, async (req, res) => {
-    const { firstName, lastName, email, userType, message } = req.body;
+    const { 
+        firstName, lastName, email, userType, message, // From Contact.tsx
+        name, company, industry, integrations, automation_goal // From RequestDemo.tsx
+    } = req.body;
 
-    if (!firstName || !email) {
+    const contactName = name || (firstName && lastName ? `${firstName} ${lastName}` : firstName);
+    const contactEmail = email;
+
+    if (!contactName || !contactEmail) {
         return res.status(400).json({ error: 'Name and Email are required.' });
     }
 
@@ -351,35 +357,42 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
             },
         });
 
-        const interestLabel = userType === 'team' ? 'Custom Solution (Enterprise)' : 'ARKY AI Agent (Individual)';
+        // Determine which form was submitted based on the payload
+        const isDemoRequest = !!industry;
+        
+        const subject = isDemoRequest 
+            ? `New Demo Request: ${contactName} from ${company || 'Unknown Company'}`
+            : `New Lead: ${contactName} - ${userType === 'team' ? 'Custom Solution' : 'ARKY AI Agent'}`;
+
+        const htmlContent = isDemoRequest 
+            ? `
+                <h2>New Demo Request</h2>
+                <p><strong>Name:</strong> ${contactName}</p>
+                <p><strong>Email:</strong> ${contactEmail}</p>
+                <p><strong>Company:</strong> ${company || 'Not Specified'}</p>
+                <p><strong>Industry:</strong> ${industry || 'Not Specified'}</p>
+                <p><strong>Integrations:</strong> ${integrations || 'None Selected'}</p>
+                <p><strong>Automation Goal:</strong> ${automation_goal || 'Not Specified'}</p>
+            `
+            : `
+                <h2>New Contact Form Submission</h2>
+                <p><strong>Name:</strong> ${contactName}</p>
+                <p><strong>Email:</strong> ${contactEmail}</p>
+                <p><strong>Interest:</strong> ${userType === 'team' ? 'Custom Solution' : 'ARKY AI Agent'}</p>
+                <br/>
+                <p><strong>Message:</strong></p>
+                <p>${message || 'No additional message provided.'}</p>
+            `;
 
         const mailOptions = {
             from: `"GK Edge Website" <${process.env.SMTP_USER}>`,
             to: 'info@gkedgemedia.com',
-            subject: `New Lead: ${firstName} ${lastName} - ${interestLabel}`,
-            text: `
-New Contact Form Submission
-
-Name: ${firstName} ${lastName}
-Email: ${email}
-Interest: ${interestLabel}
-
-Message:
-${message || 'No additional message provided.'}
-            `,
-            html: `
-                <h2>New Contact Form Submission</h2>
-                <p><strong>Name:</strong> ${firstName} ${lastName}</p>
-                <p><strong>Email:</strong> ${email}</p>
-                <p><strong>Interest:</strong> ${interestLabel}</p>
-                <br/>
-                <p><strong>Message:</strong></p>
-                <p>${message || 'No additional message provided.'}</p>
-            `
+            subject: subject,
+            html: htmlContent
         };
 
         await transporter.sendMail(mailOptions);
-        console.log(`Email sent successfully to info@gkedgemedia.com from ${email}`);
+        console.log(`Email sent successfully to info@gkedgemedia.com from ${contactEmail}`);
         res.json({ success: true, message: 'Email sent successfully' });
 
     } catch (error) {
