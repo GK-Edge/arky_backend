@@ -356,15 +356,23 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
     }
 
     try {
+        const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
         const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+        
+        console.log(`📧 Attempting to send email via ${smtpHost}:${smtpPort}`);
+        console.log(`👤 Using SMTP User: ${process.env.SMTP_USER}`);
+        
         const transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || 'smtp.gmail.com',
+            host: smtpHost,
             port: smtpPort,
             secure: smtpPort === 465,
             auth: {
                 user: process.env.SMTP_USER,
                 pass: process.env.SMTP_PASS,
             },
+            connectionTimeout: 10000, // 10 seconds
+            greetingTimeout: 10000,
+            socketTimeout: 15000,
         });
 
         // Determine which form was submitted based on the payload
