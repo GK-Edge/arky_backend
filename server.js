@@ -335,7 +335,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 });
 
 // Email endpoint with rate limiting
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 
 app.post('/api/contact', contactLimiter, async (req, res) => {
     const { 
@@ -350,31 +350,14 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
         return res.status(400).json({ error: 'Name and Email are required.' });
     }
 
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-        console.error("SMTP Configuration Error: Missing SMTP_USER or SMTP_PASS");
-        return res.status(500).json({ error: 'Server email configuration missing.' });
+    if (!process.env.SENDGRID_API_KEY) {
+        console.error("SendGrid Configuration Error: Missing SENDGRID_API_KEY");
+        return res.status(500).json({ error: 'Server email configuration missing (SENDGRID_API_KEY).' });
     }
 
-    try {
-        const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
-        const smtpPort = parseInt(process.env.SMTP_PORT || '587');
-        
-        console.log(`📧 Attempting to send email via ${smtpHost}:${smtpPort}`);
-        console.log(`👤 Using SMTP User: ${process.env.SMTP_USER}`);
-        
-        const transporter = nodemailer.createTransport({
-            host: smtpHost,
-            port: smtpPort,
-            secure: smtpPort === 465,
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
-            },
-            connectionTimeout: 10000, // 10 seconds
-            greetingTimeout: 10000,
-            socketTimeout: 15000,
-        });
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
+    try {
         // Determine which form was submitted based on the payload
         const isDemoRequest = !!industry;
         
@@ -402,22 +385,17 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
                 <p>${message || 'No additional message provided.'}</p>
             `;
 
-        const mailOptions = {
-            from: `"GK Edge Website" <${process.env.SMTP_USER}>`,
+        const msg = {
             to: 'info@gkedgemedia.com',
+            from: process.env.SENDGRID_FROM || 'info@gkedgemedia.com', // Must be verified in SendGrid dashboard
             subject: subject,
-            html: htmlContent
+            html: htmlContent,
+            replyTo: contactEmail
         };
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log("Email sent: %s", info.messageId);
+        await sgMail.send(msg);
+        console.log(`✅ Email sent successfully (SendGrid Message ID: ${subject})`);
         
-        // Log the preview URL if using ethereal email
-        const previewUrl = nodemailer.getTestMessageUrl(info);
-        if (previewUrl) {
-            console.log("Preview URL: %s", previewUrl);
-        }
-
         res.json({ success: true, message: 'Message sent successfully!' });
 
     } catch (error) {
