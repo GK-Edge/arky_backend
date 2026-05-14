@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import rateLimit from 'express-rate-limit';
+import { Resend } from 'resend';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -335,7 +336,10 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 });
 
 // Email endpoint with rate limiting
-import sgMail from '@sendgrid/mail';
+import path from 'path';
+
+// Initialize Resend
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 app.post('/api/contact', contactLimiter, async (req, res) => {
     const { 
@@ -349,13 +353,6 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
     if (!contactName || !contactEmail) {
         return res.status(400).json({ error: 'Name and Email are required.' });
     }
-
-    if (!process.env.SENDGRID_API_KEY) {
-        console.error("SendGrid Configuration Error: Missing SENDGRID_API_KEY");
-        return res.status(500).json({ error: 'Server email configuration missing (SENDGRID_API_KEY).' });
-    }
-
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
     try {
         // Determine which form was submitted based on the payload
@@ -385,17 +382,20 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
                 <p>${message || 'No additional message provided.'}</p>
             `;
 
-        const msg = {
-            to: 'info@gkedgemedia.com',
-            from: process.env.SENDGRID_FROM || 'info@gkedgemedia.com', // Must be verified in SendGrid dashboard
+        const { data, error } = await resend.emails.send({
+            from: 'GK Edge <onboarding@resend.dev>', // Use verified domain later, for now onboarding works
+            to: ['info@gkedgemedia.com'],
             subject: subject,
             html: htmlContent,
-            replyTo: contactEmail
-        };
+            reply_to: contactEmail
+        });
 
-        await sgMail.send(msg);
-        console.log(`✅ Email sent successfully (SendGrid Message ID: ${subject})`);
-        
+        if (error) {
+            console.error("Resend API Error:", error);
+            return res.status(500).json({ error: 'Failed to send email via Resend.' });
+        }
+
+        console.log("Email sent successfully via Resend:", data.id);
         res.json({ success: true, message: 'Message sent successfully!' });
 
     } catch (error) {
