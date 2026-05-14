@@ -381,7 +381,7 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
             `;
 
         const { data, error } = await resend.emails.send({
-            from: 'GK Edge <onboarding@resend.dev>', // Use verified domain later, for now onboarding works
+            from: 'GK Edge <notifications@gk-edge.com>', 
             to: ['info@gkedgemedia.com'],
             subject: subject,
             html: htmlContent,
