@@ -33,7 +33,9 @@ const allowedOrigins = [
     'https://gk-edge.com',
     'https://www.gk-edge.com',
     'https://arky-landing-page.onrender.com',
-    'http://localhost:3000'
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:5173'
 ];
 
 app.use(cors({
