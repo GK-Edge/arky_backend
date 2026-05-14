@@ -336,8 +336,6 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 });
 
 // Email endpoint with rate limiting
-import path from 'path';
-
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY);
 
