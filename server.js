@@ -7,15 +7,19 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+const __filename_local = fileURLToPath(import.meta.url);
+const __dirname_local = path.dirname(__filename_local);
+
+// Look for .env.local in the root project folder (one level up from backend/)
+dotenv.config({ path: path.join(__dirname_local, '..', '.env.local') });
+console.log('✅ dotenv configured');
+
 console.log('Environment:', process.env.NODE_ENV || 'development');
 console.log('----------------------------------------');
 console.log('🔍 DEBUG: Checking Environment Variables');
 console.log('GEMINI_API_KEY present:', !!process.env.GEMINI_API_KEY ? 'YES ✅' : 'NO ❌');
 console.log('All Env Keys:', Object.keys(process.env).sort().join(', '));
 console.log('----------------------------------------');
-
-dotenv.config({ path: '.env.local' });
-console.log('✅ dotenv configured');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -57,14 +61,22 @@ const chatLimiter = rateLimit({
     message: { error: "Whoah, we see you're spamming a bit there! Take it easy, you'll be able to message Arky again in a minute." },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => {
+        const origin = req.get('origin') || '';
+        return origin.includes('localhost');
+    },
 });
 
 const contactLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 3, // 3 requests per 15 minutes per IP
+    windowMs: 3 * 60 * 1000, // 3 minutes
+    max: 3, // 3 requests per 3 minutes per IP
     message: { error: 'Too many contact form submissions, please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => {
+        const origin = req.get('origin') || '';
+        return origin.includes('localhost');
+    },
 });
 
 console.log('✅ Rate limiting configured (Chat: 10/min, Contact: 3/15min)');
@@ -73,12 +85,9 @@ const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 console.log('✅ Gemini AI initialized:', ai ? 'YES' : 'NO (missing API key)');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const KNOWLEDGEBASE_CANDIDATE_PATHS = [
     path.join(process.cwd(), 'knowledgebase.md'),
-    path.join(__dirname, 'knowledgebase.md'),
+    path.join(__dirname_local, 'knowledgebase.md'),
     path.join(process.cwd(), 'backend', 'knowledgebase.md'),
 ];
 
@@ -391,9 +400,16 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
             html: htmlContent
         };
 
-        await transporter.sendMail(mailOptions);
-        console.log(`Email sent successfully to info@gkedgemedia.com from ${contactEmail}`);
-        res.json({ success: true, message: 'Email sent successfully' });
+        const info = await transporter.sendMail(mailOptions);
+        console.log("Email sent: %s", info.messageId);
+        
+        // Log the preview URL if using ethereal email
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        if (previewUrl) {
+            console.log("Preview URL: %s", previewUrl);
+        }
+
+        res.json({ success: true, message: 'Message sent successfully!' });
 
     } catch (error) {
         console.error("Email Sending Error:", error);
