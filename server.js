@@ -22,6 +22,7 @@ console.log('All Env Keys:', Object.keys(process.env).sort().join(', '));
 console.log('----------------------------------------');
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (Render)
 const port = process.env.PORT || 3001;
 console.log(`🔧 Server will listen on port: ${port}`);
 
