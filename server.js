@@ -4,9 +4,9 @@ import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import rateLimit from 'express-rate-limit';
 import { Resend } from 'resend';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { loadKnowledgeBase } from './knowledge.js';
 
 const __filename_local = fileURLToPath(import.meta.url);
 const __dirname_local = path.dirname(__filename_local);
@@ -89,120 +89,77 @@ const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 console.log('✅ Gemini AI initialized:', ai ? 'YES' : 'NO (missing API key)');
 
-const KNOWLEDGEBASE_CANDIDATE_PATHS = [
-    path.join(process.cwd(), 'knowledgebase.md'),
-    path.join(__dirname_local, 'knowledgebase.md'),
-    path.join(process.cwd(), 'backend', 'knowledgebase.md'),
-];
-
-const knowledgebasePath = KNOWLEDGEBASE_CANDIDATE_PATHS.find((candidate) => fs.existsSync(candidate));
-const knowledgebaseRaw = knowledgebasePath ? fs.readFileSync(knowledgebasePath, 'utf8') : '';
+const { file: knowledgebasePath, base: knowledge } = loadKnowledgeBase(__dirname_local);
 
 if (knowledgebasePath) {
-    console.log(`✅ Knowledgebase loaded from: ${knowledgebasePath}`);
+    const { sections, characters, mode } = knowledge.describe();
+    console.log(`✅ Knowledgebase loaded from ${knowledgebasePath}: ${sections} sections, ${characters} characters, ${mode} mode`);
 } else {
-    console.warn('⚠️ Knowledgebase not found. Site Copilot will run with limited context.');
+    console.warn('⚠️ Knowledgebase not found. ARKY will run with limited context.');
 }
 
-function normalizeText(value) {
-    return value
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
+/** How much of a conversation and a question ARKY will take in, so one visitor cannot run up a bill. */
+const LIMITS = { message: 2000, historyTurns: 8, historyChars: 1200, replyTimeoutMs: 45000 };
 
-function tokenize(value) {
-    return normalizeText(value)
-        .split(' ')
-        .filter((token) => token.length > 2);
-}
-
-function parseKnowledgebaseSections(markdown) {
-    if (!markdown.trim()) return [];
-
-    const lines = markdown.split(/\r?\n/);
-    const sections = [];
-    let currentTitle = 'General Overview';
-    let currentLevel = 1;
-    let currentLines = [];
-
-    const flushSection = () => {
-        const content = currentLines.join('\n').trim();
-        if (!content) return;
-        sections.push({
-            title: currentTitle,
-            level: currentLevel,
-            content,
-            normalizedTitle: normalizeText(currentTitle),
-            normalizedContent: normalizeText(content),
-        });
-    };
-
-    for (const line of lines) {
-        const heading = line.match(/^(#{1,6})\s+(.+)$/);
-        if (heading) {
-            flushSection();
-            currentTitle = heading[2].trim();
-            currentLevel = heading[1].length;
-            currentLines = [];
-            continue;
-        }
-        currentLines.push(line);
-    }
-
-    flushSection();
-    return sections;
+/**
+ * Names the language to answer in. The knowledgebase is mostly English but carries a Greek glossary, and a model reading
+ * it will otherwise answer an English question in Greek. Counting the letters of each script settles it.
+ */
+function languageDirective(message) {
+    const greek = (message.match(/\p{Script=Greek}/gu) || []).length;
+    const latin = (message.match(/\p{Script=Latin}/gu) || []).length;
+    if (greek > latin) return 'Reply in Greek. Use /el links.';
+    if (latin > 0 && greek === 0) return 'Reply in English. Use links without a language prefix.';
+    return "Reply in the language of the visitor question below, whichever that is.";
 }
 
 function formatHistory(history) {
     if (!Array.isArray(history)) return '';
     return history
-        .slice(-8)
+        .slice(-LIMITS.historyTurns)
         .map((message) => {
             const role = message?.role === 'assistant' ? 'ARKY' : 'Visitor';
-            const content = typeof message?.content === 'string' ? message.content.trim() : '';
+            const content = typeof message?.content === 'string' ? message.content.trim().slice(0, LIMITS.historyChars) : '';
             return content ? `${role}: ${content}` : '';
         })
         .filter(Boolean)
         .join('\n');
 }
 
-const parsedKnowledgebaseSections = parseKnowledgebaseSections(knowledgebaseRaw);
-console.log(`✅ Knowledgebase sections parsed: ${parsedKnowledgebaseSections.length}`);
+/**
+ * Turns a request body into everything the model call needs, or an error to send back. Both chat routes go through here
+ * so the streaming and non-streaming answers are built from identical context.
+ */
+function prepareChat(body) {
+    const { message, mode = 'demo', history = [] } = body ?? {};
 
-function getKnowledgeContext(query, limit = 4) {
-    if (!parsedKnowledgebaseSections.length) return '';
-
-    const queryTokens = [...new Set(tokenize(query))];
-
-    if (!queryTokens.length) {
-        return parsedKnowledgebaseSections
-            .slice(0, Math.min(limit, 3))
-            .map((section) => `## ${section.title}\n${section.content.slice(0, 1400)}`)
-            .join('\n\n');
+    if (typeof message !== 'string' || !message.trim()) {
+        return { error: { status: 400, code: 'message_required', message: 'Message is required.' } };
+    }
+    if (message.length > LIMITS.message) {
+        return { error: { status: 413, code: 'message_too_long', message: `Please keep your question under ${LIMITS.message} characters.` } };
     }
 
-    const scored = parsedKnowledgebaseSections
-        .map((section) => {
-            let score = 0;
-            for (const token of queryTokens) {
-                if (section.normalizedTitle.includes(token)) {
-                    score += 6;
-                }
-                const contentHits = section.normalizedContent.split(token).length - 1;
-                score += Math.min(contentHits, 5);
-            }
-            return { section, score };
-        })
-        .sort((a, b) => b.score - a.score || a.section.level - b.section.level);
+    const chatMode = mode === 'site_copilot' ? 'site_copilot' : 'demo';
+    const safeMessage = message.trim();
+    const historyText = formatHistory(history);
+    // Retrieval reads the question first and the conversation second, so an old topic cannot outvote the current one.
+    const { text: knowledgeContext, headings } = knowledge.context(`${safeMessage} ${safeMessage} ${historyText}`);
 
-    const relevant = scored.filter((item) => item.score > 0);
-    const selected = (relevant.length ? relevant : scored).slice(0, limit);
+    const contents = [
+        languageDirective(safeMessage),
+        historyText ? `Recent conversation:\n${historyText}` : '',
+        knowledgeContext ? `Knowledgebase:\n${knowledgeContext}` : '',
+        `Visitor question: ${safeMessage}`,
+    ].filter(Boolean).join('\n\n');
 
-    return selected
-        .map(({ section }) => `## ${section.title}\n${section.content.slice(0, 1400)}`)
-        .join('\n\n');
+    return {
+        contents,
+        headings,
+        config: {
+            systemInstruction: chatMode === 'site_copilot' ? SITE_COPILOT_SYSTEM_INSTRUCTION : DEMO_SYSTEM_INSTRUCTION,
+        },
+    };
 }
 
 const DEMO_SYSTEM_INSTRUCTION = `You are ARKY, an advanced AI agent designed for enterprise business operations.
@@ -211,10 +168,10 @@ IMPORTANT: You are currently running in DEMO MODE on our website. Your purpose i
 
 **ABOUT ARKY & GK EDGE:**
 ARKY is created by GK Edge, a company founded in 2023 by Manos Koulouris and Nektarios Georgaklis. 
-Contact: info@gkedgemedia.com
+Contact: info@gk-edge.com
 
 **SCOPE RESTRICTION:**
-ONLY answer questions about ARKY's capabilities and GK Edge's services. If users ask about unrelated topics, politely redirect them back to discussing ARKY or suggest they contact us at info@gkedgemedia.com for other inquiries.
+ONLY answer questions about ARKY's capabilities and GK Edge's services. If users ask about unrelated topics, politely redirect them back to discussing ARKY or suggest they contact us at info@gk-edge.com for other inquiries.
 
 When users ask you to perform tasks (like web browsing, creating documents, or data analysis), politely explain that you're a demo version here to inform them about ARKY's capabilities, and encourage them to contact our team for the full deployment.
 
@@ -260,8 +217,11 @@ YOUR DEMO ROLE:
 - Answer questions about ARKY's capabilities enthusiastically
 - Provide examples of how ARKY could solve their business problems
 - Be helpful, professional, and concise
-- Guide interested users to contact our team (info@gkedgemedia.com) for full deployment
+- Guide interested users to contact our team (info@gk-edge.com) for full deployment
 - Stay on topic: ARKY and GK Edge only
+
+LANGUAGE:
+Answer in the visitor's own language. If they write in Greek, reply in Greek.
 
 Keep responses conversational, clear, and under 150 words unless detailed explanation is needed.`;
 
@@ -270,71 +230,148 @@ const SITE_COPILOT_SYSTEM_INSTRUCTION = `You are ARKY Site Copilot for gk-edge.c
 Your role is to help visitors navigate the website and understand GK Edge services.
 
 Rules:
-- Use only provided knowledgebase context and conversation context.
-- Do not invent pricing, certifications, guarantees, or client claims.
-- Keep replies concise and practical (2-6 short sentences).
-- When suggesting pages, use markdown links with labels (example: [Contact](/contact), [Request a Demo](/request-demo)).
-- The /arky page no longer exists — never link to it or tell users to visit it. ARKY is described directly on the homepage; if asked to learn more about ARKY or see it in action, point users to [Request a Demo](/request-demo) or [Contact](/contact) instead.
+- Answer in the visitor's own language. If they write in Greek, reply in Greek; the knowledgebase is in English, so translate what you need.
+- Use only the provided knowledgebase and conversation context. If the answer is not there, say so plainly rather than guessing.
+- Do not invent pricing, certifications, guarantees, client names, case studies, phone numbers or addresses.
+- Keep replies concise and practical (2-6 short sentences). Use a short list only when the answer really is a list.
+- When suggesting pages, use markdown links with labels (example: [Contact](/contact), [Request a Demo](/request-demo)). For a visitor writing in Greek, prefix the path with /el (example: [Επικοινωνία](/el/contact)).
+- The /arky page no longer exists — never link to it or tell users to visit it. If asked to learn more about ARKY or see it in action, point users to [Request a Demo](/request-demo) or [Contact](/contact) instead.
 - Do not output raw paths alone unless the user explicitly asks for raw URLs.
-- If information is missing, say so briefly and suggest contacting info@gkedgemedia.com.`;
+- You are the site assistant, not the deployed ARKY product: you answer questions, you do not perform tasks, browse the web or create documents. Say so briefly if asked to.
+- If information is missing, say so briefly and suggest contacting info@gk-edge.com.`;
 
-// Health check endpoint
+const MODEL = 'gemini-3.1-flash-lite-preview';
+
+/** The preview model answers 503 "high demand" now and then. One quick retry turns most of those into an answer. */
+const TRANSIENT_UPSTREAM = /503|UNAVAILABLE|high demand|overloaded|deadline/i;
+
+async function withRetry(run, attempts = 2) {
+    let lastError;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        try {
+            return await run();
+        } catch (error) {
+            lastError = error;
+            const described = `${error?.message ?? ''} ${error?.status ?? ''}`;
+            if (attempt === attempts || !TRANSIENT_UPSTREAM.test(described)) throw error;
+            console.warn(`Upstream hiccup, retrying (${attempt}/${attempts - 1}):`, error?.message || error);
+            await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
+        }
+    }
+    throw lastError;
+}
+
+/** Rejects if the model has not answered in time, so a stalled upstream call does not hold a visitor's browser open. */
+function withDeadline(promise, ms, label) {
+    let timer;
+    const deadline = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(Object.assign(new Error(`${label} timed out`), { code: 'timeout' })), ms);
+    });
+    return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
+// Health check endpoint. It reports what the knowledgebase looks like, so a deploy can be verified without guessing.
 app.get('/', (req, res) => {
     res.json({
         status: 'running',
         service: 'ARKY Backend API',
-        version: '1.0.0',
-        endpoints: ['/api/chat', '/api/contact'],
+        version: '1.1.0',
+        endpoints: ['/api/chat', '/api/chat/stream', '/api/contact'],
+        model: MODEL,
+        knowledgebase: knowledgebasePath ? knowledge.describe() : { sections: 0, characters: 0, mode: 'missing' },
         rateLimits: {
             chat: '10 requests per minute',
-            contact: '3 requests per 15 minutes'
+            contact: '3 requests per 3 minutes'
         }
     });
 });
 
-// Chat endpoint with rate limiting
+// Chat endpoint: one request, one complete answer. Kept for clients that cannot read a stream.
 app.post('/api/chat', chatLimiter, async (req, res) => {
     if (!ai) {
-        return res.status(500).json({ error: 'Server configuration error: Missing API Key.' });
+        return res.status(503).json({ error: 'ARKY is not configured on this server.', code: 'no_api_key' });
     }
 
-    const { message, mode = 'demo', history = [] } = req.body;
-
-    if (!message || typeof message !== 'string') {
-        return res.status(400).json({ error: 'Message is required.' });
+    const prepared = prepareChat(req.body);
+    if (prepared.error) {
+        return res.status(prepared.error.status).json({ error: prepared.error.message, code: prepared.error.code });
     }
 
     try {
-        const model = 'gemini-3.1-flash-lite-preview';
-        const safeMessage = message.trim();
-        const chatMode = mode === 'site_copilot' ? 'site_copilot' : 'demo';
-        const historyText = formatHistory(history);
-        const knowledgeContext = chatMode === 'site_copilot'
-            ? getKnowledgeContext(`${safeMessage}\n${historyText}`)
-            : '';
-
-        const payload = chatMode === 'site_copilot'
-            ? [
-                historyText ? `Recent conversation:\n${historyText}` : '',
-                knowledgeContext ? `Knowledgebase excerpts:\n${knowledgeContext}` : '',
-                `Visitor question: ${safeMessage}`,
-            ].filter(Boolean).join('\n\n')
-            : safeMessage;
-
-        const response = await ai.models.generateContent({
-            model: model,
-            contents: payload,
-            config: {
-                systemInstruction: chatMode === 'site_copilot'
-                    ? SITE_COPILOT_SYSTEM_INSTRUCTION
-                    : DEMO_SYSTEM_INSTRUCTION,
-            }
-        });
-
-        res.json({ reply: response.text || "I processed your request but could not generate a text response." });
+        const response = await withDeadline(
+            withRetry(() => ai.models.generateContent({ model: MODEL, contents: prepared.contents, config: prepared.config })),
+            LIMITS.replyTimeoutMs,
+            'Model call',
+        );
+        res.json({ reply: response.text || 'I could not put an answer together. Could you rephrase that?' });
     } catch (error) {
-        console.error("Gemini API Error:", error);
-        res.status(500).json({ error: 'Failed to connect to AI service.' });
+        const timedOut = error?.code === 'timeout';
+        console.error('Gemini API Error:', error?.message || error);
+        res.status(timedOut ? 504 : 502).json({
+            error: timedOut ? 'ARKY took too long to answer. Please try again.' : 'ARKY could not reach its AI service.',
+            code: timedOut ? 'timeout' : 'upstream_error',
+        });
+    }
+});
+
+/**
+ * Chat endpoint that streams the answer as it is written, as server-sent events: `delta` carries the next piece of text,
+ * `done` closes a complete answer, `error` reports a failure mid-answer. A visitor sees words within a second instead of
+ * watching a spinner for the length of the whole reply.
+ */
+app.post('/api/chat/stream', chatLimiter, async (req, res) => {
+    if (!ai) {
+        return res.status(503).json({ error: 'ARKY is not configured on this server.', code: 'no_api_key' });
+    }
+
+    const prepared = prepareChat(req.body);
+    if (prepared.error) {
+        return res.status(prepared.error.status).json({ error: prepared.error.message, code: prepared.error.code });
+    }
+
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no', // proxies must not hold the pieces back
+    });
+    res.flushHeaders?.();
+
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const heartbeat = setInterval(() => res.write(': keep-alive\n\n'), 15000);
+    let closed = false;
+    req.on('close', () => { closed = true; });
+
+    try {
+        const stream = await withDeadline(
+            withRetry(() => ai.models.generateContentStream({ model: MODEL, contents: prepared.contents, config: prepared.config })),
+            LIMITS.replyTimeoutMs,
+            'Model call',
+        );
+
+        let wroteSomething = false;
+        for await (const chunk of stream) {
+            if (closed) break;
+            const text = chunk?.text;
+            if (text) {
+                wroteSomething = true;
+                send('delta', { text });
+            }
+        }
+
+        if (!closed) send('done', { empty: !wroteSomething });
+    } catch (error) {
+        const timedOut = error?.code === 'timeout';
+        console.error('Gemini stream error:', error?.message || error);
+        if (!closed) {
+            send('error', {
+                error: timedOut ? 'ARKY took too long to answer. Please try again.' : 'ARKY could not reach its AI service.',
+                code: timedOut ? 'timeout' : 'upstream_error',
+            });
+        }
+    } finally {
+        clearInterval(heartbeat);
+        res.end();
     }
 });
 
@@ -384,7 +421,7 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
 
         const { data, error } = await resend.emails.send({
             from: 'GK Edge <notifications@gk-edge.com>', 
-            to: ['info@gkedgemedia.com'],
+            to: ['info@gk-edge.com'],
             subject: subject,
             html: htmlContent,
             reply_to: contactEmail
