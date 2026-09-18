@@ -304,6 +304,20 @@ again in a few minutes; this is expected, not a fault.
 
 The home page names four areas of work: AI Product Strategy, Automation Systems, AI Adoption Strategy, Enterprise Integrations.
 
+### The Home Hero
+
+Headline "Your Strategic AI Adoption Partner", under it "Build faster. Operate smarter. Scale with confidence." Four capability tags sit at the foot of the
+hero: AI Product Strategy, Automation Systems, AI Adoption Strategy, Enterprise Integrations.
+
+Two buttons: "Start a project" goes to [Contact](/contact); "See how we work" jumps to chapter 04 on the same
+page. The Greek home page shows the same headline in English.
+
+### The Home Page's Last Chapter (06)
+
+Headed "Start Building Your AI Infrastructure". Two buttons: "Work with us" goes to
+[Contact](/contact), and "Talk to ARKY" opens this chat panel in place — it is not a link to another page. In
+Greek: "Ξεκινήστε την Δημιουργία της AI Υποδομής Σας", "Συνεργαστείτε μαζί μας", "Μιλήστε στο ARKY".
+
 ### The Systems We Build
 
 "Powerful, secure, and fully integrated with your operational stack."
