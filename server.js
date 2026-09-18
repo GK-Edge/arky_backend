@@ -32,17 +32,18 @@ const allowedOrigins = [
     'https://gkedgemedia.com',
     'https://gk-edge.com',
     'https://www.gk-edge.com',
-    'https://arky-landing-page.onrender.com',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:5173'
+    'https://lavender-parrot-848521.hostingersite.com',
+    'https://arky-landing-page.onrender.com'
 ];
+
+/** Any port on the developer's own machine: the site is served on a different one depending on the tool in use. */
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) === -1) {
+        if (!allowedOrigins.includes(origin) && !LOCAL_ORIGIN.test(origin)) {
             const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
             return callback(new Error(msg), false);
         }
