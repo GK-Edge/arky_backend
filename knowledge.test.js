@@ -114,3 +114,15 @@ test('an empty knowledge base yields empty context rather than throwing', () => 
   assert.deepEqual(base.context('hello'), { text: '', headings: [], whole: false });
   assert.equal(base.describe().sections, 0);
 });
+
+test('an editing note in an HTML comment is not something ARKY knows', () => {
+  const base = createKnowledgeBase('<!-- internal: do not publish this -->\n\n# Services\n\nWe build AI systems.');
+  const { text } = base.context('what do you build');
+  assert.doesNotMatch(text, /do not publish/);
+  assert.match(text, /We build AI systems\./);
+});
+
+test('the real knowledge base carries no editing notes into the answer', () => {
+  const base = createKnowledgeBase(realMarkdown);
+  assert.doesNotMatch(base.context('anything').text, /Last verified|Rules for editing/);
+});

@@ -1,3 +1,17 @@
+<!--
+This file is what ARKY answers from. It is read at startup, parsed into sections by heading, and sent to the model.
+
+How to change what ARKY knows: edit this file, run `npm test`, commit, push. Nothing else needs to change.
+
+Rules for editing:
+- Every statement here must be true of the live website. If the site's wording changes, change it here too.
+- Never name a path that is not one of the eight the Site Map lists; links to anything else are stripped from answers.
+- Never add a price, a certification, a guarantee or a client result that is not published on the site.
+- Keep headings meaningful: they are what retrieval matches on if this file ever outgrows the whole-base limit.
+
+Last verified against the site: 2026-09-18.
+-->
+
 # GK Edge, Your Strategic AI Adoption Partner
 We help businesses adopt AI the right way, by building systems that integrate into their operations and drive measurable growth.
 
@@ -5,9 +19,10 @@ We help businesses adopt AI the right way, by building systems that integrate in
 Most Businesses Are Not Structured To Scale with AI
 Industry leaders are already integrating AI into their daily operations.
 
-- Workflows are being optimized through intelligent AI systems
-- Customer communication is becoming instant and automated
-- Lead handling is no longer dependent on human availability
+- Time consuming workflows are being optimized through intelligent AI systems.
+- Data and analysis are being orchestrated with an AI layer.
+- Slow customer communication is becoming instant and automated.
+- Lead handling is no longer dependent on human availability.
 
 This shift is not experimental,  it is operational.
 The real question is not whether AI will impact your business,
@@ -43,7 +58,7 @@ Our role is to ensure that AI becomes a functional part of your business, not ju
 - Reduction of manual workload across departments
 
 ### AI Customer Handling Systems
-- Automated responses across channels (website, Instagram, WhatsApp)
+- Automated responses across channels
 - Lead qualification based on predefined criteria
 - Appointment scheduling without manual involvement
 
@@ -70,8 +85,11 @@ Customers receive faster and more reliable service
 Businesses operate with greater efficiency and control
 AI becomes a core operational layer, not just an additional tool.
 
-## Verticals
-Our systems are adaptable and can be implemented across multiple business models:
+## Business Models We Also Work With
+
+The six sectors the site highlights are listed under "Industries The Site Highlights". Beyond those,
+the systems adapt to these business models — useful detail in an answer, but not a list published on
+the site:
 
 ### Agencies & Teams
 - Internal task automation
@@ -105,7 +123,7 @@ Identifying areas where AI can create immediate impact
 ### Phase 3: System Design & Development
  Building a custom AI solution tailored to your needs
 
-### Phase 4: Integration & Training
+### Phase 4: Integration
 Seamless incorporation into your existing workflows and tools
 
 ### Phase 5: Optimization & Scaling
@@ -282,6 +300,156 @@ The contact and demo forms accept a limited number of submissions from the same
 visitor in a short window. A visitor who submits repeatedly may be asked to try
 again in a few minutes; this is expected, not a fault.
 
+## What We Offer, As The Site Describes It
+
+The home page names four areas of work: AI Product Strategy, Automation Systems, AI Adoption Strategy, Enterprise Integrations.
+
+### The Systems We Build
+
+"Powerful, secure, and fully integrated with your operational stack."
+
+- **AI Offer & Logistics Engine** — A business-integrated AI agent that automates offer creation, interacts with ERP systems, and optimizes inventory and logistics in real time.
+- **AI Data Intelligence Layer** — An AI-powered layer that transforms raw business data into structured insights, enabling better decisions, forecasting, and operational clarity.
+- **Tailored AI Systems** — Custom-built AI systems engineered around your business processes, delivering automation, efficiency, and measurable impact.
+
+These three are the systems named on the site. The broader categories described elsewhere in this file (custom AI tools,
+automation systems, customer handling systems, consulting) are how the same work is grouped; both descriptions are true,
+and either is fine to use in an answer.
+
+### Industries The Site Highlights
+
+"Purpose-built AI architectures to address the specific friction points of your vertical."
+
+- Financial Services
+- Healthcare
+- Legal
+- Logistics
+- Real Estate
+- E-commerce
+
+The demo request form offers the same list plus Technology, Manufacturing, Retail and Other. Work is not restricted to
+these: the systems adapt to a business model, and the section on business models below covers agencies, service
+businesses and e-commerce in more detail.
+
+### Clients Whose Logos The Site Shows
+
+The home page and the contact page show a strip of client logos: Varelas, Shoes, Seansor, iEpiplo, GAC, Alevra Law, PrimeLayer, Corvers, Priority, Fides Advisory, Global Construction Power, Elysian Management Group, The Nodding Cat, Gamco, AT20 Sports Park.
+
+Nothing is published about what was built for any of them. Name them only if a visitor asks who GK Edge works with, and
+never describe a project, a result or a relationship beyond the fact that their logo appears on the site.
+
+## Privacy, In The Words Of The Policy
+
+Full text at [Privacy](/privacy). Each point below is what the policy itself says.
+
+### Cookies And What The Site Does Not Collect
+
+Our website does not collect cookies or any other personal data unless explicitly provided by the user. We prioritize your privacy and aim to offer a transparent and secure user experience.
+
+### Email Submissions
+
+If you choose to submit your email to join our marketing or mailing lists, we assure you that:
+
+- Your email will be stored securely in our database.
+- Your email will not be shared or sold to any third party.
+- We will use your email only for the purposes stated at the time of collection, such as sending newsletters, updates, or marketing materials.
+
+### Knowledge Base Data For AI Chatbots
+
+GK Edge offers services where businesses can provide knowledge base data for the training of AI chatbots. Regarding this data:
+
+- All information is securely stored in our encrypted database.
+- The data will remain confidential and will never be disclosed to any third party without the client’s explicit request or consent.
+- We implement rigorous security measures to protect the integrity and confidentiality of the data.
+- Upon termination of our services or at the client’s request, we can delete the data from our systems permanently.
+
+### How We Protect Your Information
+
+We ensure the protection of any data you provide to us. These measures include:
+
+- Encrypted storage for all sensitive data.
+- Regular security audits and system updates.
+- Restricted access to data on a need-to-know basis within our organization.
+
+### Your Rights Over Your Data
+
+You have the right to:
+
+- Access, update, or delete any personal data you have shared with us.
+- Withdraw consent for marketing communications at any time.
+- Request the deletion of any knowledge base data stored in our systems.
+
+### Third-Party Services
+
+Our website and services do not share your data with third-party vendors unless required for essential functions (e.g., email service providers for newsletters). In such cases, we ensure these vendors comply with stringent data protection standards.
+
+These are practices the policy states, not a compliance certification: see "What We Do Not Claim".
+
+## The Terms, In Brief
+
+Full text at [Terms & Conditions](/terms). Quote these only when asked; they are contract terms, not
+marketing.
+
+### Payment Terms (Website Development)
+
+The Terms publish these figures for website work only, never for AI engagements: an annual web
+hosting fee of €150, and maintenance from a minimum of €50 per month covering essential updates and
+technical support. Full payment is not required until the project is complete and approved by the
+client, and interest-free instalment plans are available. Work beyond the agreed scope costs extra
+and is quoted before it is done; clients are expected to supply feedback and materials on time.
+
+### AI Services In The Terms
+
+Costs are described as transparent with no hidden fees. AI token usage is a passthrough charge billed
+to the client, who may instead plug in their own API keys for direct cost tracking — the Terms put it
+as "We provide the car, you re-fuel it!". The Terms also state plainly that chatbots are tools that
+cannot fully replace the human factor, that clients should monitor interactions periodically, that
+100% accuracy is not guaranteed and GK Edge is not liable for errors or omissions from chatbot
+operation, and that requested customizations may carry additional fees depending on scope.
+
+### Termination And Refunds
+
+Either party may terminate the agreement with 30 days' written notice. Refunds, where they apply, are
+handled according to the individual service agreement — the site publishes no blanket refund policy.
+GK Edge also reserves the right to terminate services if the terms are violated. For digital
+marketing, unused services or campaign budgets are non-refundable unless explicitly agreed.
+
+### Intellectual Property
+
+All intellectual property rights are owned by GK Edge unless otherwise stated, and the content,
+software and branding on the site are its exclusive property. Feedback a visitor sends about the
+services grants GK Edge a royalty-free, worldwide, perpetual, irrevocable licence to use it. Clients
+are responsible for ensuring any content they supply is original and does not infringe third-party
+rights. Ownership of a specific deliverable is not published — that is settled in the individual
+service agreement.
+
+### Liability And Governing Law
+
+The site and services are provided "AS IS" and "AS AVAILABLE", with no warranty that the site runs
+error-free. GK Edge accepts no liability for indirect, incidental or consequential damages, including
+lost profits or data, and limits its liability to the greatest extent Greek law permits. The Terms
+are governed by the laws of Greece and disputes fall to the Greek courts. GK Edge may amend the Terms
+at any time, notifying clients of significant changes.
+
+### Website Development And Digital Marketing
+
+Besides AI work, the Terms cover two further service lines: website development and digital
+marketing. Digital marketing packages are customised per client, with terms agreed before work
+starts, and campaign strategies and analytics reports are shared regularly; the Terms note that
+performance results such as traffic or leads vary with market conditions. Neither service line has
+its own page — the Terms are the only place they are described, so for details offer
+[Contact](/contact).
+
+## The Pylon CRM Extension
+
+A private productivity tool for people at GK Edge, not a public product, described at
+[its own privacy policy](/extension-privacy) (effective March 04, 2026). On an explicit "Save Lead"
+or "Website Scan" it captures public profile information — name, job title, company, LinkedIn URL —
+and work emails visible on the page, from LinkedIn and company websites, into a private encrypted GK
+Edge CRM. It is used only for lead management and sales prospecting, and the data is never sold,
+rented or traded. It does no background tracking, reads no browsing history and no passwords. Mention
+it only if a visitor asks about it.
+
 ## Frequently Asked Questions
 
 These are the answers published on the site, in the site's own marketing wording. Where any of it
@@ -432,8 +600,11 @@ knowledge base. Treat a Greek term as a match for its English counterpart.
 | Προσλήψεις | Recruiting / ATS |
 | Άλλο / Κάτι άλλο | Other / Something else |
 
-Greek and English pages carry the same facts. An answer sourced from the English
-copy is valid for a Greek visitor; only the links change (add the `/el` prefix).
+Greek and English pages carry the same facts, with two differences worth knowing: the Greek home page
+shows three of the five FAQ questions, and its industry labels are slightly broader — Logistics &
+Supply Chain, Οικονομικές Υπηρεσίες, Υγεία & Φαρμακευτικά, Νομικές Υπηρεσίες, Real Estate,
+E-commerce & Retail. Otherwise an answer sourced from the English copy is valid for a Greek visitor;
+only the links change (add the `/el` prefix).
 
 ## What We Do Not Claim
 

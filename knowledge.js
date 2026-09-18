@@ -20,8 +20,12 @@
 import fs from 'fs';
 import path from 'path';
 
-/** Send the whole knowledge base while it fits in this many characters, roughly 4k tokens. */
-export const WHOLE_BASE_LIMIT = 30000;
+/**
+ * Send the whole knowledge base while it fits in this many characters — roughly 12k tokens, which the model reads in a
+ * fraction of the time it takes to write an answer, and which costs a fraction of a cent. Perfect recall is worth that:
+ * no retrieval can be trusted to pick the one section that held the answer. Past this size, retrieval takes over.
+ */
+export const WHOLE_BASE_LIMIT = 45000;
 
 /** When retrieving, stop adding sections past this many characters. */
 export const RETRIEVAL_BUDGET = 8000;
@@ -67,7 +71,7 @@ const SUFFIXES = [
   { end: 'οσ', min: 6, replace: '' }, { end: 'ου', min: 6, replace: '' }, { end: 'ων', min: 6, replace: '' },
   { end: 'εσ', min: 6, replace: '' },
   // English inflections. "ies" and "y" both land on "i", so "agencies" meets "agency".
-  { end: 'ing', min: 6, replace: '' }, { end: 'ies', min: 6, replace: 'i' }, { end: 'ed', min: 6, replace: '' },
+  { end: 'ing', min: 6, replace: '' }, { end: 'ies', min: 6, replace: 'i' }, { end: 'ed', min: 5, replace: '' },
   { end: 'er', min: 6, replace: '' }, { end: 'es', min: 5, replace: '' }, { end: 'e', min: 6, replace: '' },
   { end: 'y', min: 5, replace: 'i' }, { end: 's', min: 4, replace: '' },
 ];
@@ -103,6 +107,8 @@ function countTokens(tokens) {
  */
 export function parseSections(markdown) {
   if (!markdown || !markdown.trim()) return [];
+  // HTML comments are notes to whoever edits the file. The model must never read them as things it knows.
+  markdown = markdown.replace(/<!--[\s\S]*?-->/g, '');
 
   const sections = [];
   const ancestors = [];
@@ -181,14 +187,16 @@ function parseGlossary(sections) {
 
 /** A knowledge base ready to answer from. */
 export function createKnowledgeBase(markdown, { wholeBaseLimit = WHOLE_BASE_LIMIT, budget = RETRIEVAL_BUDGET } = {}) {
-  const sections = parseSections(markdown);
+  // Editing notes are not knowledge, and they should not count against the size budget either.
+  const content = String(markdown ?? '').replace(/<!--[\s\S]*?-->/g, '');
+  const sections = parseSections(content);
   const idf = inverseFrequencies(sections);
   const glossary = parseGlossary(sections);
   const answerable = sections.filter((section) => !isGlossary(section));
   const lengths = answerable.map((section) => [...section.contentCounts.values()].reduce((a, b) => a + b, 0) || 1);
   const averageLength = lengths.reduce((a, b) => a + b, 0) / (lengths.length || 1);
 
-  const totalChars = markdown.trim().length;
+  const totalChars = content.trim().length;
   const fitsWhole = totalChars > 0 && totalChars <= wholeBaseLimit;
 
   /**
@@ -223,7 +231,8 @@ export function createKnowledgeBase(markdown, { wholeBaseLimit = WHOLE_BASE_LIMI
         let score = 0;
         for (const token of tokens) {
           const weight = idf.get(token) ?? Math.log(1 + sections.length);
-          if (section.titleTokens.has(token)) score += weight * 2;
+          // A heading is the section's strongest signal: a word in it says what the whole section is about.
+          if (section.titleTokens.has(token)) score += weight * 4;
           const hits = section.contentCounts.get(token) ?? 0;
           if (hits) score += weight * ((hits * (k1 + 1)) / (hits + k1 * (1 - b + (b * length) / averageLength)));
         }
