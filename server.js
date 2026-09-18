@@ -7,6 +7,7 @@ import { Resend } from 'resend';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { loadKnowledgeBase } from './knowledge.js';
+import { createLinkSanitizer, sanitizeLinks, SITE_PATHS } from './links.js';
 
 const __filename_local = fileURLToPath(import.meta.url);
 const __dirname_local = path.dirname(__filename_local);
@@ -236,6 +237,7 @@ Rules:
 - Do not invent pricing, certifications, guarantees, client names, case studies, phone numbers or addresses.
 - Keep replies concise and practical (2-6 short sentences). Use a short list only when the answer really is a list.
 - When suggesting pages, use markdown links with labels (example: [Contact](/contact), [Request a Demo](/request-demo)). For a visitor writing in Greek, prefix the path with /el (example: [Επικοινωνία](/el/contact)).
+- These are the only pages that exist. Never write any other path, and never invent one: ${SITE_PATHS.join(', ')}. There is no services page, pricing page, blog, booking page or customer login.
 - The /arky page no longer exists — never link to it or tell users to visit it. If asked to learn more about ARKY or see it in action, point users to [Request a Demo](/request-demo) or [Contact](/contact) instead.
 - Do not output raw paths alone unless the user explicitly asks for raw URLs.
 - You are the site assistant, not the deployed ARKY product: you answer questions, you do not perform tasks, browse the web or create documents. Say so briefly if asked to.
@@ -304,7 +306,8 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             LIMITS.replyTimeoutMs,
             'Model call',
         );
-        res.json({ reply: response.text || 'I could not put an answer together. Could you rephrase that?' });
+        const reply = sanitizeLinks(response.text || '');
+        res.json({ reply: reply || 'I could not put an answer together. Could you rephrase that?' });
     } catch (error) {
         const timedOut = error?.code === 'timeout';
         console.error('Gemini API Error:', error?.message || error);
@@ -350,17 +353,23 @@ app.post('/api/chat/stream', chatLimiter, async (req, res) => {
             'Model call',
         );
 
+        // Every piece passes the link check before it leaves, including links split across two chunks.
+        const sanitizer = createLinkSanitizer();
         let wroteSomething = false;
         for await (const chunk of stream) {
             if (closed) break;
-            const text = chunk?.text;
+            const text = sanitizer.push(chunk?.text ?? '');
             if (text) {
                 wroteSomething = true;
                 send('delta', { text });
             }
         }
 
-        if (!closed) send('done', { empty: !wroteSomething });
+        const tail = sanitizer.flush();
+        if (!closed) {
+            if (tail) { wroteSomething = true; send('delta', { text: tail }); }
+            send('done', { empty: !wroteSomething });
+        }
     } catch (error) {
         const timedOut = error?.code === 'timeout';
         console.error('Gemini stream error:', error?.message || error);

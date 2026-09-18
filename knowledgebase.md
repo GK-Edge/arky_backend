@@ -157,6 +157,11 @@ Our focus is not just technology, it is business impact.
 The site is bilingual. Every page exists twice: at its English path and at the
 same path prefixed with `/el` for Greek. Link in the visitor's language.
 
+**These eight paths are the only ones that exist.** Never write any other path,
+in a link or in prose, and never invent one:
+`/`, `/team`, `/careers`, `/contact`, `/request-demo`, `/privacy`, `/terms`,
+`/extension-privacy` — each also valid with the `/el` prefix.
+
 ### English routes
 
 - `/` — Home. Hero ("Your Strategic AI Adoption Partner"), client logo strip,
@@ -196,16 +201,19 @@ The same eight pages, identical content in Greek:
 
 ### Retired route
 
-- `/arky` (and `/el/arky`) no longer exists. It redirects to the home page.
-  Never link to it and never tell a visitor to visit it. For ARKY questions,
-  point to [Request a Demo](/request-demo) or [Contact](/contact).
+The old ARKY page no longer exists and redirects to the home page. Never link to
+it and never tell a visitor to visit it. For ARKY questions, point to
+[Request a Demo](/request-demo) or [Contact](/contact).
 
 ### Not on the site
 
-There is no pricing page, no blog, no case-study page, no login or customer
-portal, and no booking-calendar page. Old URLs such as `/pricing`, `/services`,
-`/consulting` and `/roi-calculator` redirect to `/request-demo`; `/our-team` and
-`/about-us` redirect to `/team`. Never present these old paths as live pages.
+There is no services page, no pricing page, no consulting page, no ROI
+calculator, no blog, no case-study page, no login or customer portal, and no
+booking-calendar page. The old site had pages by those names and their URLs now
+redirect, but they are not pages a visitor can be sent to: for services and
+pricing questions answer from this knowledge base and offer
+[Request a Demo](/request-demo) or [Contact](/contact); for company and people
+questions offer [Team](/team).
 
 ## Contact and Next Steps
 
