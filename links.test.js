@@ -7,10 +7,11 @@ test('a page that exists is linked as written', () => {
   assert.equal(sanitizeLinks('Start at [Home](/).'), 'Start at [Home](/).');
 });
 
-test('a retired URL is sent to the page that replaced it', () => {
-  assert.equal(sanitizeLinks('See our [Services](/services).'), 'See our [Services](/request-demo).');
-  assert.equal(sanitizeLinks('[Pricing](/pricing)'), '[Pricing](/request-demo)');
-  assert.equal(sanitizeLinks('[About us](/about-us)'), '[About us](/team)');
+test('a retired URL keeps its words and loses its link, rather than opening a different page', () => {
+  // A link labelled "Services" that opens the demo form is the bug this guard exists to prevent.
+  assert.equal(sanitizeLinks('See our [Services](/services).'), 'See our Services.');
+  assert.equal(sanitizeLinks('[Pricing](/pricing)'), 'Pricing');
+  assert.equal(sanitizeLinks('[About us](/about-us)'), 'About us');
 });
 
 test('a path the site has never had keeps its words and loses its link', () => {
@@ -20,7 +21,7 @@ test('a path the site has never had keeps its words and loses its link', () => {
 
 test('a Greek answer keeps its /el prefix', () => {
   assert.equal(sanitizeLinks('[Επικοινωνία](/el/contact)'), '[Επικοινωνία](/el/contact)');
-  assert.equal(sanitizeLinks('[Υπηρεσίες](/el/services)'), '[Υπηρεσίες](/el/request-demo)');
+  assert.equal(sanitizeLinks('[Υπηρεσίες](/el/services)'), 'Υπηρεσίες');
   assert.equal(sanitizeLinks('[Αρχική](/el)'), '[Αρχική](/el)');
 });
 
@@ -39,7 +40,7 @@ test('an external link is left exactly as the model wrote it', () => {
 });
 
 test('a bare path in the prose is corrected too, because the site turns it into a link', () => {
-  assert.equal(sanitizeLinks('Visit /services to learn more.'), 'Visit /request-demo to learn more.');
+  assert.equal(sanitizeLinks('Visit /services to learn more.'), 'Visit services to learn more.');
   assert.equal(sanitizeLinks('Visit /nowhere-real to learn more.'), 'Visit nowhere-real to learn more.');
   assert.equal(sanitizeLinks('Visit /contact.'), 'Visit /contact.');
 });
@@ -50,7 +51,7 @@ test('a link split across two pieces of a stream is still checked', () => {
   out.push(sanitizer.push('You can see our [Serv'));
   out.push(sanitizer.push('ices](/services) page.'));
   out.push(sanitizer.flush());
-  assert.equal(out.join(''), 'You can see our [Services](/request-demo) page.');
+  assert.equal(out.join(''), 'You can see our Services page.');
 });
 
 test('a stream releases text as it goes rather than holding the whole answer', () => {
@@ -65,7 +66,7 @@ test('a path split across pieces is not released half-written', () => {
   out.push(sanitizer.push('Go to /serv'));
   out.push(sanitizer.push('ices now'));
   out.push(sanitizer.flush());
-  assert.equal(out.join(''), 'Go to /request-demo now');
+  assert.equal(out.join(''), 'Go to services now');
 });
 
 test('nothing is lost when an answer ends mid-link', () => {

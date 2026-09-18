@@ -4,8 +4,12 @@
  * The site is a single-page app: an unknown path does not 404 at the server, it renders the site's own "page not found"
  * screen, which is a worse dead end than a broken link because it looks like the site is at fault. A model that has read
  * a knowledge base mentioning retired URLs will sooner or later offer one, so every link it writes is checked here
- * rather than trusted: a known page passes, a retired URL is rewritten to the page that replaced it, and anything else
- * loses its link and keeps its words.
+ * rather than trusted: a path the site serves passes, and anything else loses its link and keeps its words.
+ *
+ * It deliberately does not send an unknown path to some nearby page. The model chose the words of the link, and a label
+ * reading "Our Services" that lands on the demo form is a worse answer than the same words with no link at all: the
+ * visitor asked for one thing and arrived somewhere else. Redirecting retired URLs is the web server's job, for people
+ * who type them; it is not a way to rescue a link the model should not have written.
  */
 
 /** Every path the site actually serves. Mirrors the routes in App.tsx. */
@@ -20,32 +24,10 @@ export const SITE_PATHS = [
   '/extension-privacy',
 ];
 
-/** Retired URLs and the page that replaced each, mirroring the redirects in the site's public/.htaccess. */
-export const REPLACED_PATHS = {
-  '/arky': '/',
-  '/services': '/request-demo',
-  '/pricing': '/request-demo',
-  '/consulting': '/request-demo',
-  '/roi-calculator': '/request-demo',
-  '/try-our-product-for-free': '/request-demo',
-  '/social-media-management': '/request-demo',
-  '/digital-marketing-strategies': '/request-demo',
-  '/demo': '/request-demo',
-  '/our-team': '/team',
-  '/about-us': '/team',
-  '/jobs': '/careers',
-  '/privacy-policy': '/privacy',
-  '/terms-conditions': '/terms',
-  '/contact-us': '/contact',
-  '/home': '/',
-  '/blog': '/',
-  '/case-studies': '/',
-};
-
 const known = new Set(SITE_PATHS);
 
 /**
- * Where a path written by the model should actually point, or null if no page fits. Handles the `/el` prefix, a trailing
+ * The path in the form the site serves it, or null if the site has no such page. Handles the `/el` prefix, a trailing
  * slash, and any query or hash the model appended.
  */
 export function resolvePath(raw) {
@@ -56,10 +38,9 @@ export function resolvePath(raw) {
   if (base.length > 1) base = base.replace(/\/+$/, '');
   if (!base.startsWith('/')) return null;
 
-  const target = known.has(base) ? base : REPLACED_PATHS[base] ?? null;
-  if (!target) return null;
-  if (!greek) return target;
-  return target === '/' ? '/el' : `/el${target}`;
+  if (!known.has(base)) return null;
+  if (!greek) return base;
+  return base === '/' ? '/el' : `/el${base}`;
 }
 
 const MARKDOWN_LINK = /\[([^\]\n]+)\]\((\/[^)\s]*)\)/g;
@@ -67,7 +48,7 @@ const MARKDOWN_LINK = /\[([^\]\n]+)\]\((\/[^)\s]*)\)/g;
 // so "info@gk-edge.com" and "https://example.com/path" are left alone.
 const BARE_PATH = /(^|[\s(“"'])(\/[a-z][a-z0-9-]*(?:\/[a-z0-9-]+)*)\/?(?=$|[\s),.;:!?”"'])/gim;
 
-/** Rewrites or unlinks every site path in a piece of an answer. External links are left as written. */
+/** Unlinks every site path in a piece of an answer that the site does not serve. External links are left as written. */
 export function sanitizeLinks(text) {
   if (!text) return text;
 
