@@ -136,3 +136,9 @@ test('a link that is not even a web address is dropped', () => {
   assert.equal(resolveExternal('javascript:alert(1)'), null);
   assert.equal(resolveExternal('https://gk-edge.com.evil.example/'), null);
 });
+
+test('an email address is never turned into a link to a page', () => {
+  assert.equal(sanitizeLinks('Email [info@gk-edge.com](/contact) or visit [Contact](/contact).'),
+    'Email info@gk-edge.com or visit [Contact](/contact).');
+  assert.equal(sanitizeLinks('[careers@gk-edge.com](/careers)'), 'careers@gk-edge.com');
+});

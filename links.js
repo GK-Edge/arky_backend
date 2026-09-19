@@ -76,6 +76,8 @@ export function sanitizeLinks(text) {
   if (!text) return text;
 
   let safe = String(text).replace(MARKDOWN_LINK, (whole, label, path) => {
+    // An address used as link text is a trap: it reads like "write to this" and behaves like "go to that page".
+    if (/^\s*\S+@\S+\.\S+\s*$/.test(label)) return label.trim();
     const target = resolvePath(path);
     return target ? `[${label}](${target})` : label;
   });
