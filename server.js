@@ -163,8 +163,12 @@ function prepareChat(body) {
     // Retrieval reads the question first and the conversation second, so an old topic cannot outvote the current one.
     const { text: knowledgeContext, headings } = knowledge.context(`${safeMessage} ${safeMessage} ${historyText}`);
 
+    const smallTalk = isSmallTalk(safeMessage);
+
     const contents = [
         languageDirective(safeMessage),
+        // Links are stripped from a greeting anyway; without this the model still lists the pages and leaves bare labels.
+        smallTalk ? 'This message is a greeting or a thank-you. Answer warmly in one or two sentences. Mention no pages and no links, and invite them to ask a question.' : '',
         historyText ? `Recent conversation:\n${historyText}` : '',
         knowledgeContext ? `Knowledgebase:\n${knowledgeContext}` : '',
         `Visitor question: ${safeMessage}`,
@@ -174,7 +178,7 @@ function prepareChat(body) {
         contents,
         headings,
         // A greeting gets no call to action; anything else gets one link, or two when a second destination earns it.
-        maxLinks: isSmallTalk(safeMessage) ? 0 : 2,
+        maxLinks: smallTalk ? 0 : 2,
         config: { systemInstruction: ARKY_SYSTEM_INSTRUCTION },
     };
 }
