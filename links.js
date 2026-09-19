@@ -12,6 +12,9 @@
  * who type them; it is not a way to rescue a link the model should not have written.
  */
 
+/** Lowercase and strip accents, so "Γεια" and "γεια" read the same. */
+const fold = (value) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 /** Every path the site actually serves. Mirrors the routes in App.tsx. */
 export const SITE_PATHS = [
   '/',
@@ -65,18 +68,59 @@ export function sanitizeLinks(text) {
   return safe;
 }
 
+
+/** Greetings, thanks and goodbyes: an answer to one of these needs words, not a call to action. */
+const SMALL_TALK = /^(?:hi|hey|hello|yo|sup|good (?:morning|afternoon|evening)|thanks?|thank you|cheers|ok(?:ay)?|bye|goodbye|γεια|γεια σου|γεια σας|καλημερα|καλησπερα|ευχαριστω|ευχαριστώ|αντιο|τεστ|test)[\s!.,]*$/iu;
+
+/** True when the visitor has said hello rather than asked something. */
+export function isSmallTalk(message) {
+  return SMALL_TALK.test(fold(String(message ?? '')).trim() || String(message ?? '').trim());
+}
+
+/**
+ * Keeps at most `max` links in an answer and unlinks the rest, leaving their words. Models reach for a call to action at
+ * the end of every reply; a visitor who asked what a phase is called does not need to be sold to twice.
+ */
+export function capLinks(text, max) {
+  if (!text) return text;
+  let kept = 0;
+  const seen = new Set();
+  return String(text).replace(/\[([^\]\n]+)\]\((\/[^)\s]*)\)/g, (whole, label, path) => {
+    if (kept >= max || seen.has(path)) return label;
+    seen.add(path);
+    kept += 1;
+    return whole;
+  });
+}
+
 /**
  * The same check applied to a stream, where a link can be split across two pieces. Text is released only up to a point
  * where nothing half-written is left behind: an unclosed `[`, or a trailing fragment that may still grow into a path.
  */
-export function createLinkSanitizer() {
+export function createLinkSanitizer({ maxLinks = Infinity } = {}) {
   let pending = '';
+  let used = 0;
+  const seen = new Set();
+
+  /** Applies the budget to one released piece, counting what it lets through. */
+  const budget = (text) => text.replace(/\[([^\]\n]+)\]\((\/[^)\s]*)\)/g, (whole, label, path) => {
+    if (used >= maxLinks || seen.has(path)) return label;
+    seen.add(path);
+    used += 1;
+    return whole;
+  });
 
   const safeCut = (text) => {
+    // Everything up to the end of the last finished link is settled; only what follows can still grow.
+    let settled = 0;
+    for (const match of text.matchAll(/\[[^\]\n]*\]\([^)\s]*\)/g)) settled = match.index + match[0].length;
+
     const open = text.lastIndexOf('[');
-    if (open !== -1 && !/\]\([^)]*\)/.test(text.slice(open))) return open;
-    const trailing = text.match(/(?:\/|\[)[^\s]*$/);
-    if (trailing) return text.length - trailing[0].length;
+    if (open >= settled) return open; // a link has started and not finished
+
+    const tail = text.slice(settled);
+    const trailing = tail.match(/(?:\/|\[)[^\s]*$/);
+    if (trailing) return settled + tail.length - trailing[0].length; // a path may still be arriving
     return text.length;
   };
 
@@ -87,11 +131,11 @@ export function createLinkSanitizer() {
       const cut = safeCut(pending);
       const ready = pending.slice(0, cut);
       pending = pending.slice(cut);
-      return sanitizeLinks(ready);
+      return budget(sanitizeLinks(ready));
     },
     /** Returns whatever was being held back, once the answer is complete. */
     flush() {
-      const rest = sanitizeLinks(pending);
+      const rest = budget(sanitizeLinks(pending));
       pending = '';
       return rest;
     },

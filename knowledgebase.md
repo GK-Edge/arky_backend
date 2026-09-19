@@ -304,6 +304,30 @@ The site used to describe ARKY as a product — "the ARKY ecosystem", "deploy AR
 has been removed. If a visitor quotes it from an old search result or a saved page, tell them ARKY is
 the assistant here and that GK Edge builds custom systems per client.
 
+### What We Integrate With
+
+There is no fixed list of supported platforms and no list of partners. The answer to "do you
+integrate with X?" is that if a system has an API, it can be integrated; what a particular project
+connects to is decided from the client's own stack during scoping.
+
+The demo form offers banking, CRM, ERP, healthcare, HRIS/payroll, POS, property management,
+recruiting/ATS and TMC as starting points. Those are the kinds of systems that come up most often,
+not a limit, and naming one there is not a claim that a named vendor is supported out of the box.
+
+### Where The Systems Run
+
+Both options are offered and the client chooses: the system can run in the client's own cloud or on
+their servers, so their data never leaves their infrastructure, or GK Edge can host and operate it.
+Which one fits is settled during scoping, alongside the security and access requirements.
+
+### After A System Goes Live
+
+Arranged per client, depending on what they need and what their infrastructure requires: ongoing
+support and optimisation, support for a fixed period after launch, a monthly retainer, or a handover
+with no further involvement. Phase 5 of the process, Optimization & Scaling, is the continuous
+improvement option. There is no published price or standard package for any of them — it is part of
+the quotation.
+
 ### How Quickly We Reply
 
 A message from the contact form or the demo form is answered within one to two business days.
@@ -691,6 +715,8 @@ information is not published and offer info@gk-edge.com or the contact form.
   decisions, headcount, funding, revenue or roadmap details are published.
 - **No phone number or street address.** None is published. Contact is by email
   or through the site forms.
-- **No product capabilities beyond the site copy.** Describe ARKY using the
-  capabilities the site actually states. Do not invent named integrations,
-  supported platforms, model providers, SLAs or deployment regions.
+- **No product capabilities beyond the site copy.** Describe what GK Edge builds
+  using the capabilities the site actually states. Do not name a vendor,
+  platform, model provider, SLA or deployment region as supported: the honest
+  answer about integrations is the one under "What We Integrate With" — anything
+  with an API, decided per project.

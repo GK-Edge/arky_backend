@@ -7,7 +7,7 @@ import { Resend } from 'resend';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { loadKnowledgeBase } from './knowledge.js';
-import { createLinkSanitizer, sanitizeLinks, SITE_PATHS } from './links.js';
+import { capLinks, createLinkSanitizer, isSmallTalk, sanitizeLinks, SITE_PATHS } from './links.js';
 
 const __filename_local = fileURLToPath(import.meta.url);
 const __dirname_local = path.dirname(__filename_local);
@@ -87,6 +87,20 @@ const contactLimiter = rateLimit({
 
 console.log('✅ Rate limiting configured (Chat: 10/min, Contact: 3/15min)');
 
+/**
+ * The model's own quota is the real limit: the API key allows a fixed number of requests per minute across everyone, and
+ * exceeding it fails every visitor at once. This ceiling sits just below it, so a busy minute turns into "ask me again in
+ * a moment" for the few over the line instead of an outage for all.
+ */
+const modelCeiling = rateLimit({
+    windowMs: 60 * 1000,
+    max: Number(process.env.MODEL_REQUESTS_PER_MINUTE || 12),
+    keyGenerator: () => 'everyone',
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'ARKY is answering a lot of questions right now. Try again in a few seconds.', code: 'busy' },
+});
+
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 console.log('✅ Gemini AI initialized:', ai ? 'YES' : 'NO (missing API key)');
@@ -159,6 +173,8 @@ function prepareChat(body) {
     return {
         contents,
         headings,
+        // A greeting gets no call to action; anything else gets one link, or two when a second destination earns it.
+        maxLinks: isSmallTalk(safeMessage) ? 0 : 2,
         config: { systemInstruction: ARKY_SYSTEM_INSTRUCTION },
     };
 }
@@ -179,7 +195,8 @@ Rules:
 - When suggesting pages, use markdown links with labels (example: [Contact](/contact), [Request a Demo](/request-demo)). For a visitor writing in Greek, prefix the path with /el (example: [Επικοινωνία](/el/contact)).
 - These are the only pages that exist. Never write any other path, and never invent one: ${SITE_PATHS.join(', ')}. There is no services page, pricing page, blog, booking page or customer login.
 - Link only when you are sending the visitor to one of those pages as their next step, and make the link text the page's own name: [Contact](/contact), [Request a Demo](/request-demo), [Team](/team), [Careers](/careers). Never wrap a service, a capability or a sentence in a link — describe those in plain words.
-- At most two links in a reply, and none at all when the visitor is only greeting you or asking something a sentence answers.
+- One link is the normal maximum, and many answers need none: a question of fact gets the fact. Link to the page that actually holds more on the subject — team questions to [Team](/team), job questions to [Careers](/careers), privacy questions to [Privacy](/privacy), contract questions to [Terms & Conditions](/terms).
+- Do not end every reply with the same invitation. Offer [Contact](/contact) or [Request a Demo](/request-demo) only when the visitor is asking about their own project, a price, a demo, or something the site does not answer — and then choose one of the two, not both. Never attach either to a greeting, a refusal or an off-topic question.
 - There is no ARKY page and no ARKY product page: never link to one. If a visitor asks what ARKY is, say you are GK Edge's assistant on this site. If they ask to buy it or what it costs, explain that GK Edge builds custom AI systems per client and point to [Request a Demo](/request-demo) or [Contact](/contact).
 - Do not output raw paths alone unless the user explicitly asks for raw URLs.
 - You answer questions; you do not perform tasks, browse the web, create documents or act on anyone's systems. Say so briefly if asked to.
@@ -189,6 +206,18 @@ const MODEL = 'gemini-3.1-flash-lite-preview';
 
 /** The preview model answers 503 "high demand" now and then. One quick retry turns most of those into an answer. */
 const TRANSIENT_UPSTREAM = /503|UNAVAILABLE|high demand|overloaded|deadline/i;
+/** The API key's per-minute quota. Retrying does not help — the model itself says to wait tens of seconds. */
+const QUOTA_EXHAUSTED = /RESOURCE_EXHAUSTED|exceeded your current quota|429/i;
+
+/** How a failed model call should be reported to a visitor. */
+function describeFailure(error) {
+    const described = `${error?.message ?? ''} ${error?.status ?? ''}`;
+    if (error?.code === 'timeout') return { status: 504, code: 'timeout', error: 'ARKY took too long to answer. Please try again.' };
+    if (QUOTA_EXHAUSTED.test(described)) {
+        return { status: 429, code: 'busy', error: 'ARKY is answering a lot of questions right now. Try again in a few seconds.' };
+    }
+    return { status: 502, code: 'upstream_error', error: 'ARKY could not reach its AI service.' };
+}
 
 async function withRetry(run, attempts = 2) {
     let lastError;
@@ -232,7 +261,7 @@ app.get('/', (req, res) => {
 });
 
 // Chat endpoint: one request, one complete answer. Kept for clients that cannot read a stream.
-app.post('/api/chat', chatLimiter, async (req, res) => {
+app.post('/api/chat', chatLimiter, modelCeiling, async (req, res) => {
     if (!ai) {
         return res.status(503).json({ error: 'ARKY is not configured on this server.', code: 'no_api_key' });
     }
@@ -248,15 +277,12 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
             LIMITS.replyTimeoutMs,
             'Model call',
         );
-        const reply = sanitizeLinks(response.text || '');
+        const reply = capLinks(sanitizeLinks(response.text || ''), prepared.maxLinks);
         res.json({ reply: reply || 'I could not put an answer together. Could you rephrase that?' });
     } catch (error) {
-        const timedOut = error?.code === 'timeout';
+        const failure = describeFailure(error);
         console.error('Gemini API Error:', error?.message || error);
-        res.status(timedOut ? 504 : 502).json({
-            error: timedOut ? 'ARKY took too long to answer. Please try again.' : 'ARKY could not reach its AI service.',
-            code: timedOut ? 'timeout' : 'upstream_error',
-        });
+        res.status(failure.status).json({ error: failure.error, code: failure.code });
     }
 });
 
@@ -265,7 +291,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
  * `done` closes a complete answer, `error` reports a failure mid-answer. A visitor sees words within a second instead of
  * watching a spinner for the length of the whole reply.
  */
-app.post('/api/chat/stream', chatLimiter, async (req, res) => {
+app.post('/api/chat/stream', chatLimiter, modelCeiling, async (req, res) => {
     if (!ai) {
         return res.status(503).json({ error: 'ARKY is not configured on this server.', code: 'no_api_key' });
     }
@@ -296,7 +322,7 @@ app.post('/api/chat/stream', chatLimiter, async (req, res) => {
         );
 
         // Every piece passes the link check before it leaves, including links split across two chunks.
-        const sanitizer = createLinkSanitizer();
+        const sanitizer = createLinkSanitizer({ maxLinks: prepared.maxLinks });
         let wroteSomething = false;
         for await (const chunk of stream) {
             if (closed) break;
@@ -313,14 +339,9 @@ app.post('/api/chat/stream', chatLimiter, async (req, res) => {
             send('done', { empty: !wroteSomething });
         }
     } catch (error) {
-        const timedOut = error?.code === 'timeout';
+        const failure = describeFailure(error);
         console.error('Gemini stream error:', error?.message || error);
-        if (!closed) {
-            send('error', {
-                error: timedOut ? 'ARKY took too long to answer. Please try again.' : 'ARKY could not reach its AI service.',
-                code: timedOut ? 'timeout' : 'upstream_error',
-            });
-        }
+        if (!closed) send('error', { error: failure.error, code: failure.code });
     } finally {
         clearInterval(heartbeat);
         res.end();

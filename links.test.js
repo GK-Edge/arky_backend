@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createLinkSanitizer, resolvePath, sanitizeLinks } from './links.js';
+import { capLinks, createLinkSanitizer, isSmallTalk, resolvePath, sanitizeLinks } from './links.js';
 
 test('a page that exists is linked as written', () => {
   assert.equal(sanitizeLinks('See [Contact](/contact).'), 'See [Contact](/contact).');
@@ -89,4 +89,31 @@ test('every path the knowledge base names is a page that exists', async () => {
 
   const dead = [...mentioned].filter((p) => resolvePath(p) !== p);
   assert.deepEqual(dead, [], `the knowledge base names paths that are not live pages: ${dead.join(', ')}`);
+});
+
+test('a greeting gets no call to action', () => {
+  assert.equal(isSmallTalk('hello'), true);
+  assert.equal(isSmallTalk('Γεια σας'), true);
+  assert.equal(isSmallTalk('thanks!'), true);
+  assert.equal(isSmallTalk('what do you build?'), false);
+  assert.equal(capLinks('Hi there. [Contact](/contact) [Team](/team)', 0), 'Hi there. Contact Team');
+});
+
+test('an answer keeps the links it needs and drops the sales pitch after them', () => {
+  const text = 'Phase 1 is analysis. [Request a Demo](/request-demo) or [Contact](/contact) or [Team](/team).';
+  assert.equal(capLinks(text, 2), 'Phase 1 is analysis. [Request a Demo](/request-demo) or [Contact](/contact) or Team.');
+});
+
+test('the same page is never linked twice in one answer', () => {
+  assert.equal(capLinks('[Contact](/contact) and again [Contact](/contact)', 2), '[Contact](/contact) and again Contact');
+});
+
+test('a streamed answer obeys the same budget across chunks', () => {
+  const sanitizer = createLinkSanitizer({ maxLinks: 1 });
+  const out = [
+    sanitizer.push('See [Contact](/contact) '),
+    sanitizer.push('and [Request a Demo](/request-demo).'),
+    sanitizer.flush(),
+  ];
+  assert.equal(out.join(''), 'See [Contact](/contact) and Request a Demo.');
 });
