@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { capLinks, createLinkSanitizer, isSmallTalk, resolvePath, sanitizeLinks } from './links.js';
+import { capLinks, createLinkSanitizer, isSmallTalk, resolveExternal, resolvePath, sanitizeLinks } from './links.js';
 
 test('a page that exists is linked as written', () => {
   assert.equal(sanitizeLinks('See [Contact](/contact).'), 'See [Contact](/contact).');
@@ -116,4 +116,23 @@ test('a streamed answer obeys the same budget across chunks', () => {
     sanitizer.flush(),
   ];
   assert.equal(out.join(''), 'See [Contact](/contact) and Request a Demo.');
+});
+
+test('a link to GK Edge or LinkedIn survives, any other site does not', () => {
+  const linkedin = '[Manos on LinkedIn](https://www.linkedin.com/in/manos-koulouris/)';
+  assert.equal(sanitizeLinks(linkedin), linkedin);
+  assert.equal(sanitizeLinks('[our site](https://gk-edge.com/team)'), '[our site](https://gk-edge.com/team)');
+  assert.equal(sanitizeLinks('[claim your prize](https://totally-legit.example/login)'), 'claim your prize');
+});
+
+test('a bare address to somewhere else keeps its words but stops being clickable', () => {
+  assert.equal(sanitizeLinks('See https://evil.example/login now.'), 'See evil.example/login now.');
+  const ours = 'See https://www.linkedin.com/company/gk-edge/ for updates.';
+  assert.equal(sanitizeLinks(ours), ours);
+});
+
+test('a link that is not even a web address is dropped', () => {
+  assert.equal(sanitizeLinks('[click](javascript:alert(1))'), '[click](javascript:alert(1))');
+  assert.equal(resolveExternal('javascript:alert(1)'), null);
+  assert.equal(resolveExternal('https://gk-edge.com.evil.example/'), null);
 });

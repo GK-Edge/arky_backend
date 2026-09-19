@@ -15,6 +15,24 @@
 /** Lowercase and strip accents, so "Γεια" and "γεια" read the same. */
 const fold = (value) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
+/**
+ * The only hosts ARKY may link to outside the site. A model can be talked into writing any URL, and a link rendered
+ * inside GK Edge's own chat panel carries GK Edge's credibility with it; an address nobody vetted must not get that.
+ */
+export const ALLOWED_HOSTS = ['gk-edge.com', 'www.gk-edge.com', 'linkedin.com', 'www.linkedin.com'];
+
+/** The URL in the form it should be rendered, or null when nothing should link to it. */
+export function resolveExternal(raw) {
+  let url;
+  try {
+    url = new URL(String(raw));
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  return ALLOWED_HOSTS.includes(url.hostname.toLowerCase()) ? String(raw) : null;
+}
+
 /** Every path the site actually serves. Mirrors the routes in App.tsx. */
 export const SITE_PATHS = [
   '/',
@@ -47,6 +65,8 @@ export function resolvePath(raw) {
 }
 
 const MARKDOWN_LINK = /\[([^\]\n]+)\]\((\/[^)\s]*)\)/g;
+const EXTERNAL_LINK = /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g;
+const BARE_URL = /(^|[\s(“"'])(https?:\/\/[^\s)<>"']+)/g;
 // A bare path in the prose, which the site renders as a link of its own. Not preceded by a word character or a slash,
 // so "info@gk-edge.com" and "https://example.com/path" are left alone.
 const BARE_PATH = /(^|[\s(“"'])(\/[a-z][a-z0-9-]*(?:\/[a-z0-9-]+)*)\/?(?=$|[\s),.;:!?”"'])/gim;
@@ -58,6 +78,14 @@ export function sanitizeLinks(text) {
   let safe = String(text).replace(MARKDOWN_LINK, (whole, label, path) => {
     const target = resolvePath(path);
     return target ? `[${label}](${target})` : label;
+  });
+
+  safe = safe.replace(EXTERNAL_LINK, (whole, label, url) => (resolveExternal(url) ? whole : label));
+
+  safe = safe.replace(BARE_URL, (whole, lead, url) => {
+    const trimmed = url.replace(/[.,;:!?]+$/, '');
+    const trailing = url.slice(trimmed.length);
+    return resolveExternal(trimmed) ? whole : `${lead}${trimmed.replace(/^https?:\/\//, '')}${trailing}`;
   });
 
   safe = safe.replace(BARE_PATH, (whole, lead, path) => {
