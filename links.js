@@ -99,12 +99,24 @@ export function sanitizeLinks(text) {
 }
 
 
-/** Greetings, thanks and goodbyes: an answer to one of these needs words, not a call to action. */
-const SMALL_TALK = /^(?:hi|hey|hello|yo|sup|good (?:morning|afternoon|evening)|thanks?|thank you|cheers|ok(?:ay)?|bye|goodbye|γεια|γεια σου|γεια σας|καλημερα|καλησπερα|ευχαριστω|ευχαριστώ|αντιο|τεστ|test)[\s!.,]*$/iu;
+/**
+ * Greetings, thanks and goodbyes, in both languages, including the words people pad them with. A message counts as small
+ * talk only when every word in it is one of these, so "thanks" and "ευχαριστώ πολύ" qualify while "thanks, how much does
+ * it cost?" does not.
+ */
+const PLEASANTRIES = new Set(`hi hey hello yo sup good morning afternoon evening day night thanks thank thankyou you ty
+cheers ok okay k cool great nice awesome perfect bye goodbye later welcome very much lot lots so a there mate guys team
+please sorry no yes yeah yep
+γεια σου σας καλημερα καλησπερα καληνυχτα χαιρετω ευχαριστω ευχαριστουμε ευχαριστω πολυ παρα πολυ ωραια τελεια ενταξει
+οκ καλα αντιο στο επανιδειν ναι οχι παρακαλω συγγνωμη τεστ test`.split(/\s+/).filter(Boolean));
 
 /** True when the visitor has said hello rather than asked something. */
 export function isSmallTalk(message) {
-  return SMALL_TALK.test(fold(String(message ?? '')).trim() || String(message ?? '').trim());
+  const text = String(message ?? '').trim();
+  if (!text || text.includes('?') || text.includes(';')) return false;
+  const words = fold(text).replace(/[^\p{L}\p{N}\s]+/gu, ' ').split(/\s+/).filter(Boolean);
+  if (!words.length || words.length > 5) return false;
+  return words.every((word) => PLEASANTRIES.has(word));
 }
 
 /**

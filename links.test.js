@@ -91,11 +91,13 @@ test('every path the knowledge base names is a page that exists', async () => {
   assert.deepEqual(dead, [], `the knowledge base names paths that are not live pages: ${dead.join(', ')}`);
 });
 
-test('a greeting gets no call to action', () => {
-  assert.equal(isSmallTalk('hello'), true);
-  assert.equal(isSmallTalk('Γεια σας'), true);
-  assert.equal(isSmallTalk('thanks!'), true);
-  assert.equal(isSmallTalk('what do you build?'), false);
+test('a greeting gets no call to action, however it is padded', () => {
+  for (const greeting of ['hello', 'Γεια σας', 'thanks!', 'thanks a lot', 'Ευχαριστώ πολύ', 'ok great', 'hi there', 'καλημέρα σας']) {
+    assert.equal(isSmallTalk(greeting), true, greeting);
+  }
+  for (const question of ['what do you build?', 'thanks, how much does it cost', 'hello I need an AI system', 'ευχαριστώ, πόσο κοστίζει']) {
+    assert.equal(isSmallTalk(question), false, question);
+  }
   assert.equal(capLinks('Hi there. [Contact](/contact) [Team](/team)', 0), 'Hi there. Contact Team');
 });
 
